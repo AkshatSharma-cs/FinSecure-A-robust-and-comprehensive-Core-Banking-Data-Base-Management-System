@@ -1,0 +1,192 @@
+# FinSecure - Git Ignore File
+
+# =====================================================
+# Backend (Spring Boot / Maven)
+# =====================================================
+
+# Maven
+backend/target/
+backend/pom.xml.tag
+backend/pom.xml.releaseBackup
+backend/pom.xml.versionsBackup
+backend/pom.xml.next
+backend/release.properties
+backend/dependency-reduced-pom.xml
+backend/buildNumber.properties
+backend/.mvn/timing.properties
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Spring Boot
+backend/HELP.md
+backend/.apt_generated
+backend/.classpath
+backend/.factorypath
+backend/.project
+backend/.settings
+backend/.springBeans
+backend/.sts4-cache
+
+# Logs
+backend/logs/
+backend/*.log
+backend/*.log.*
+
+# =====================================================
+# Frontend (React / Node.js)
+# =====================================================
+
+# Dependencies
+frontend/*/node_modules/
+frontend/*/package-lock.json
+frontend/*/yarn.lock
+frontend/*/.pnp
+frontend/*/.pnp.js
+
+# Testing
+frontend/*/coverage
+
+# Production
+frontend/*/build
+
+# Misc
+frontend/*/.DS_Store
+frontend/*/.env.local
+frontend/*/.env.development.local
+frontend/*/.env.test.local
+frontend/*/.env.production.local
+
+# Debug
+frontend/*/npm-debug.log*
+frontend/*/yarn-debug.log*
+frontend/*/yarn-error.log*
+
+# =====================================================
+# IDE / Editor
+# =====================================================
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse
+.project
+.classpath
+.settings/
+.metadata
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# =====================================================
+# Operating System
+# =====================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# =====================================================
+# Security & Sensitive Files
+# =====================================================
+
+# SSL Certificates
+*.p12
+*.jks
+*.keystore
+*.pem
+*.key
+*.crt
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Secrets
+secrets/
+*.secret
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# =====================================================
+# Application Specific
+# =====================================================
+
+# File uploads
+/uploads/
+/var/finsecure/uploads/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Cache
+.cache/
+
+# Documentation builds
+docs/_build/
+
+# =====================================================
+# Production Deployment
+# =====================================================
+
+# Compiled files
+*.class
+*.jar
+*.war
+*.ear
+
+# Package files
+*.tar.gz
+*.zip
+*.rar
+
+# =====================================================
+# Keep these files (exceptions)
+# =====================================================
+
+# Keep important config templates
+!backend/src/main/resources/application.properties.template
+!.gitkeep
+
+# Keep documentation
+!README.md
+!QUICK_START.md
+!API_DOCUMENTATION.md
+!LICENSE
+
+# Keep SQL schema
+!backend/database-schema.sql
