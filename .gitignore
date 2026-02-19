@@ -1,0 +1,26 @@
+FinSecure Full Stack Project .gitignore
+
+Spring Boot / Maven (Backend)
+
+/target/ .log .class .jar .war *.ear
+
+React (Frontend - Both Portals)
+
+node_modules/ **/node_modules/ build/ dist/ .env .env.local
+.env.development.local .env.test.local .env.production.local
+
+IDE / Editor Files
+
+.vscode/ .idea/ .iml .ipr *.iws
+
+OS Files
+
+Thumbs.db .DS_Store
+
+Logs
+
+npm-debug.log yarn-debug.log yarn-error.log*
+
+Temporary Files
+
+.tmp .temp

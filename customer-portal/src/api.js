@@ -1,0 +1,59 @@
+import axios from 'axios';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
+
+const api = axios.create({
+  baseURL: API_URL,
+  timeout: 30000,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+// Request interceptor - attach token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor - handle 401
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Auth APIs
+export const authAPI = {
+  login: (data) => api.post('/auth/login', data),
+  register: (data) => api.post('/auth/register', data),
+  sendOtp: (data) => api.post('/auth/otp/send', data),
+  verifyOtp: (data) => api.post('/auth/otp/verify', data),
+};
+
+// Customer APIs
+export const customerAPI = {
+  getProfile: () => api.get('/customer/profile'),
+  getDashboard: () => api.get('/customer/dashboard'),
+  createAccount: (data) => api.post('/customer/accounts', data),
+  transfer: (data) => api.post('/customer/transactions/transfer', data),
+  getTransactions: (accountId, page = 0) => api.get(`/customer/transactions/${accountId}?page=${page}&size=20`),
+  getLoans: () => api.get('/customer/loans'),
+  applyLoan: (data) => api.post('/customer/loans/apply', data),
+  getCards: () => api.get('/customer/cards'),
+  issueDebitCard: (accountId) => api.post(`/customer/cards/${accountId}/issue-debit`),
+  cardAction: (data) => api.post('/customer/cards/action', data),
+  uploadKyc: (data) => api.post('/customer/kyc/upload', data),
+  getKycDocuments: () => api.get('/customer/kyc/documents'),
+  getNotifications: (page = 0) => api.get(`/customer/notifications?page=${page}&size=10`),
+  markNotificationsRead: () => api.post('/customer/notifications/read-all'),
+};
+
+export default api;

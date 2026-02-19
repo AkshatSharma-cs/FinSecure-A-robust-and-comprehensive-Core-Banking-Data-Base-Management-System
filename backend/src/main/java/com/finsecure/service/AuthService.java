@@ -1,0 +1,187 @@
+package com.finsecure.service;
+
+import com.finsecure.dto.*;
+import com.finsecure.entity.*;
+import com.finsecure.entity.Otp.OtpPurpose;
+import com.finsecure.entity.User.Role;
+import com.finsecure.repository.*;
+import com.finsecure.security.JwtUtil;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.util.Random;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final CustomerRepository customerRepository;
+    private final OtpRepository otpRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+    private final AuthenticationManager authenticationManager;
+    private final CustomUserDetailsService userDetailsService;
+    private final EmailService emailService;
+    private final NotificationService notificationService;
+    private final AuditService auditService;
+
+    @Value("${app.otp.expiration-minutes:5}")
+    private int otpExpirationMinutes;
+
+    @Transactional
+    public ApiResponse<String> register(RegisterRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            return ApiResponse.error("Email already registered", "EMAIL_EXISTS");
+        }
+        if (userRepository.existsByUsername(request.getUsername())) {
+            return ApiResponse.error("Username already taken", "USERNAME_EXISTS");
+        }
+        if (request.getPanNumber() != null && customerRepository.existsByPanNumber(request.getPanNumber())) {
+            return ApiResponse.error("PAN number already registered", "PAN_EXISTS");
+        }
+
+        User user = User.builder()
+            .email(request.getEmail())
+            .username(request.getUsername())
+            .password(passwordEncoder.encode(request.getPassword()))
+            .role(Role.ROLE_CUSTOMER)
+            .active(true)
+            .emailVerified(false)
+            .build();
+
+        user = userRepository.save(user);
+
+        Customer customer = Customer.builder()
+            .user(user)
+            .firstName(request.getFirstName())
+            .lastName(request.getLastName())
+            .phone(request.getPhone())
+            .dateOfBirth(request.getDateOfBirth())
+            .panNumber(request.getPanNumber())
+            .aadharNumber(request.getAadharNumber())
+            .address(request.getAddress())
+            .city(request.getCity())
+            .state(request.getState())
+            .pinCode(request.getPinCode())
+            .kycStatus(Customer.KycStatus.PENDING)
+            .build();
+
+        customerRepository.save(customer);
+
+        // Send welcome email and OTP for email verification
+        emailService.sendWelcomeEmail(request.getEmail(), request.getFirstName());
+        generateAndSendOtp(request.getEmail(), OtpPurpose.EMAIL_VERIFICATION);
+
+        auditService.logSuccess(user.getId(), user.getUsername(), "REGISTER", "USER", user.getId().toString(), "New customer registered");
+
+        return ApiResponse.success("Registration successful. Please verify your email.");
+    }
+
+    @Transactional
+    public ApiResponse<LoginResponse> login(LoginRequest request) {
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getIdentifier(), request.getPassword())
+            );
+
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+            String token = jwtUtil.generateToken(userDetails);
+
+            auditService.logSuccess(user.getId(), user.getUsername(), "LOGIN", "AUTH", null, "Successful login");
+
+            LoginResponse response = LoginResponse.builder()
+                .token(token)
+                .tokenType("Bearer")
+                .expiresIn(jwtUtil.getExpirationMs())
+                .role(user.getRole().name())
+                .userId(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .otpRequired(false)
+                .build();
+
+            return ApiResponse.success(response, "Login successful");
+        } catch (Exception e) {
+            auditService.logFailure(null, request.getIdentifier(), "LOGIN", "AUTH", null, e.getMessage());
+            return ApiResponse.error("Invalid credentials", "INVALID_CREDENTIALS");
+        }
+    }
+
+    @Transactional
+    public ApiResponse<String> sendOtp(OtpRequest request) {
+        if (!userRepository.existsByEmail(request.getEmail())) {
+            return ApiResponse.error("Email not registered", "EMAIL_NOT_FOUND");
+        }
+
+        generateAndSendOtp(request.getEmail(), request.getPurpose());
+        return ApiResponse.success("OTP sent to " + request.getEmail());
+    }
+
+    @Transactional
+    public ApiResponse<String> verifyOtp(OtpVerificationRequest request) {
+        Otp otp = otpRepository.findValidOtp(request.getEmail(), request.getPurpose(), LocalDateTime.now())
+            .orElse(null);
+
+        if (otp == null) {
+            return ApiResponse.error("Invalid or expired OTP", "INVALID_OTP");
+        }
+
+        if (!otp.getOtpCode().equals(request.getOtpCode())) {
+            otp.setAttemptCount(otp.getAttemptCount() + 1);
+            otpRepository.save(otp);
+            return ApiResponse.error("Incorrect OTP", "WRONG_OTP");
+        }
+
+        otp.setUsed(true);
+        otpRepository.save(otp);
+
+        if (request.getPurpose() == OtpPurpose.EMAIL_VERIFICATION) {
+            userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+                user.setEmailVerified(true);
+                userRepository.save(user);
+            });
+        }
+
+        return ApiResponse.success("OTP verified successfully");
+    }
+
+    private void generateAndSendOtp(String email, OtpPurpose purpose) {
+        // Invalidate previous OTPs
+        otpRepository.invalidatePreviousOtps(email, purpose);
+
+        String otpCode = generateOtpCode();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(otpExpirationMinutes);
+
+        Otp otp = Otp.builder()
+            .email(email)
+            .otpCode(otpCode)
+            .purpose(purpose)
+            .expiresAt(expiresAt)
+            .used(false)
+            .attemptCount(0)
+            .build();
+
+        otpRepository.save(otp);
+        emailService.sendOtpEmail(email, otpCode, purpose.name().replace("_", " "));
+    }
+
+    private String generateOtpCode() {
+        SecureRandom random = new SecureRandom();
+        return String.format("%06d", random.nextInt(1000000));
+    }
+}
